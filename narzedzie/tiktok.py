@@ -33,7 +33,7 @@ def id_z_linku(url: str) -> str | None:
     m = URL_FILMU.search(url or "")
     if m:
         return m.group(3)
-    m = re.search(r"tiktok\.com/.*?/(?:video|photo|v)/(\d{15,})", url or "")
+    m = re.search(r"tiktok\.com/(?:.*/)?(?:video|photo|v)/(\d{15,})", url or "")
     return m.group(1) if m else None
 
 
