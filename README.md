@@ -58,9 +58,43 @@ Ranking pojawia się też w czarnym oknie.
 
 ---
 
-## Mac
-To samo, tylko używasz plików `.command` (np. `1_INSTALUJ.command`). Za pierwszym razem kliknij plik
-**prawym przyciskiem → Otwórz** (macOS pyta o zgodę na uruchomienie).
+## Instrukcja krok po kroku (Mac)
+
+1. **Pobierz program:** na GitHubie **Code → Download ZIP**. Plik rozpakuje się sam w folderze
+   *Pobrane* (jeśli nie – kliknij go dwukrotnie). Przenieś folder np. na Biurko.
+2. **Zainstaluj Pythona (tylko raz):** https://www.python.org/downloads/ → **Download Python** →
+   otwórz pobrany plik `.pkg` i przejdź przez instalator (Dalej → Instaluj).
+3. **Zainstaluj program (tylko raz):** kliknij plik **`1_INSTALUJ.command`
+   prawym przyciskiem (lub z klawiszem Control) → Otwórz → Otwórz**. Otworzy się okno Terminala –
+   poczekaj, aż pojawi się „Gotowe!”.
+   * Jeśli macOS napisze, że pliku nie można otworzyć: **Ustawienia systemowe → Prywatność i ochrona**,
+     przewiń w dół i kliknij **Otwórz mimo to** przy tym pliku.
+   * Jeśli macOS zaproponuje instalację „narzędzi wiersza poleceń” (Command Line Tools) – zgódź się,
+     a po ich instalacji uruchom `1_INSTALUJ.command` jeszcze raz.
+4. **Uruchom analizę:** w ten sam sposób otwórz **`2_URUCHOM_ANALIZE.command`** i odpowiadaj na pytania
+   w oknie Terminala (wklej link: **Cmd+V**, zatwierdź: **Enter**).
+5. Pozostałe pliki działają tak samo jak na Windows: `3_PRZELICZ_RAPORT.command`,
+   `4_ODSWIEZ_LISTE_FILMOW.command`, `5_NOWE_DANE_KONKURSU.command`.
+6. Wyniki: folder **`wyniki`** – `wyniki_konkursu.xlsx` otworzysz w Excelu albo w Numbers,
+   `raport.html` w Safari.
+
+**Gdyby pliki `.command` w ogóle nie chciały się uruchomić**, otwórz aplikację **Terminal**
+(Cmd+Spacja, wpisz „Terminal”), wpisz `cd ` (ze spacją na końcu), przeciągnij folder programu
+do okna Terminala, naciśnij Enter, a potem wklej i zatwierdź Enterem:
+
+```
+chmod +x *.command && ./1_INSTALUJ.command
+```
+
+a następnie (do analizy):
+
+```
+./2_URUCHOM_ANALIZE.command
+```
+
+W trakcie pracy program otwiera osobne okno przeglądarki (Chrome, jeśli jest zainstalowany, w przeciwnym
+razie wbudowaną przeglądarkę Chromium). Nie zamykaj go i nie klikaj w nim, dopóki program pracuje.
+Na MacBooku nie zamykaj klapy w trakcie analizy.
 
 ---
 
