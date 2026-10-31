@@ -62,6 +62,16 @@ def czytaj_liste(plik: Path) -> list[str]:
     return [l.strip() for l in plik.read_text(encoding="utf-8").splitlines() if l.strip() and not l.strip().startswith("#")]
 
 
+SKROCONY = re.compile(r"(vm|vt)\.tiktok\.com/|tiktok\.com/t/")
+
+
+def normalizuj_link(u: str) -> str:
+    u = (u or "").strip()
+    if u and not u.startswith("http"):
+        u = "https://" + u
+    return u
+
+
 def kreator() -> dict:
     log("\n=== Pierwsze uruchomienie - podaj dane konkursu ===\n")
     profil = ""
@@ -69,11 +79,10 @@ def kreator() -> dict:
         profil = pytaj("1. Link do Twojego profilu TikTok (np. https://www.tiktok.com/@nazwa): ").strip()
     from .tiktok import id_z_linku
     film = ""
-    while not id_z_linku(film):
-        film = pytaj("2. Link do filmu konkursowego (np. https://www.tiktok.com/@nazwa/video/123...): ").strip()
-        if not id_z_linku(film):
-            log("   Link musi zawierać /video/ i numer filmu. Skopiuj go z przeglądarki komputera "
-                "(skrócone linki vm.tiktok.com najpierw otwórz i skopiuj pełny adres).")
+    while not (id_z_linku(film) or SKROCONY.search(film)):
+        film = pytaj("2. Link do filmu konkursowego (pełny z /video/ albo skrócony vm.tiktok.com/...): ").strip()
+        if not (id_z_linku(film) or SKROCONY.search(film)):
+            log("   To nie wygląda na link do filmu TikTok. Skopiuj go przyciskiem 'Udostępnij -> Kopiuj link'.")
     tz = ZoneInfo("Europe/Warsaw")
     while True:
         s = pytaj("3. Data i godzina ROZPOCZĘCIA konkursu (np. 2026-10-01 18:00): ")
@@ -96,8 +105,8 @@ def kreator() -> dict:
     tryb = "wszyscy" if pytaj("   Wybierz 1 lub 2 [2]: ").strip() == "1" else "slowa_kluczowe"
     odp = pytaj("6. Czy odpowiedzi na komentarze (w wątkach) też liczą się jako komentarze? [T/n]: ").strip().lower()
     cfg = {
-        "profil": profil.split("?")[0],
-        "film_konkursowy": film.split("?")[0],
+        "profil": normalizuj_link(profil.split("?")[0]),
+        "film_konkursowy": normalizuj_link(film if SKROCONY.search(film) else film.split("?")[0]),
         "start": s.strip(),
         "koniec": k.strip(),
         "strefa_czasowa": "Europe/Warsaw",
@@ -120,11 +129,42 @@ def kreator() -> dict:
 def wczytaj_ustawienia() -> dict:
     cfg = json.loads(USTAWIENIA.read_text(encoding="utf-8"))
     from .tiktok import id_z_linku
+    cfg["profil"] = normalizuj_link(cfg["profil"])
+    cfg["film_konkursowy"] = normalizuj_link(cfg["film_konkursowy"])
     cfg["film_konkursowy_id"] = id_z_linku(cfg["film_konkursowy"])
     cfg["wlasciciel_profilu"] = wlasciciel_z_linku(cfg["profil"])
-    if not cfg["film_konkursowy_id"]:
+    if not cfg["film_konkursowy_id"] and not SKROCONY.search(cfg["film_konkursowy"]):
         raise SystemExit("W ustawieniach jest nieprawidłowy link do filmu konkursowego.")
     return cfg
+
+
+def rozwin_link_konkursowy(page, cfg) -> None:
+    """Skrócony link (vm.tiktok.com) zamieniamy na pełny, otwierając go w przeglądarce."""
+    from .tiktok import id_z_linku, pauza
+    if cfg["film_konkursowy_id"]:
+        return
+    log(f"\nRozwijam skrócony link do filmu konkursowego: {cfg['film_konkursowy']}")
+    page.goto(cfg["film_konkursowy"], wait_until="domcontentloaded", timeout=60000)
+    pauza(3, 5)
+    pelny = page.url
+    if not id_z_linku(pelny):
+        try:
+            pelny = page.evaluate("() => (document.querySelector('link[rel=canonical]') || {}).href || ''")
+        except Exception:
+            pass
+    vid = id_z_linku(pelny)
+    if not vid:
+        raise SystemExit("Nie udało się odczytać pełnego linku do filmu konkursowego. Otwórz film w przeglądarce "
+                         "na komputerze, skopiuj adres z paska (z /video/) i wpisz go w ustawienia.json.")
+    if "www.tiktok.com/@" in pelny:
+        cfg["film_konkursowy"] = pelny.split("?")[0]
+    else:  # np. wersja mobilna - budujemy standardowy adres
+        cfg["film_konkursowy"] = f"https://www.tiktok.com/@{cfg['wlasciciel_profilu']}/video/{vid}"
+    cfg["film_konkursowy_id"] = vid
+    zapis = json.loads(USTAWIENIA.read_text(encoding="utf-8"))
+    zapis["film_konkursowy"] = cfg["film_konkursowy"]
+    USTAWIENIA.write_text(json.dumps(zapis, ensure_ascii=False, indent=2), encoding="utf-8")
+    log(f"Pełny link: {cfg['film_konkursowy']} (zapisano w ustawieniach)")
 
 
 def wczytaj_filmy() -> list[dict]:
@@ -191,6 +231,7 @@ def pobieranie(cfg, start, koniec, tz, args) -> None:
     pw, ctx = uruchom_przegladarke(DANE / "przegladarka")
     try:
         page = logowanie(ctx, pytaj)
+        rozwin_link_konkursowy(page, cfg)
         if not filmy or args.odswiez_liste:
             stare = {f["video_id"]: f for f in filmy}
             filmy = ustal_filmy(page, cfg, start, koniec, tz, args.bez_pytan)
@@ -309,6 +350,8 @@ def main(argv=None) -> None:
 
     if not args.tylko_raport:
         pobieranie(cfg, start, koniec, tz, args)
+    elif not cfg["film_konkursowy_id"]:
+        raise SystemExit("Najpierw uruchom analizę - skrócony link do filmu musi zostać rozwinięty.")
     generuj_raport(cfg, start, koniec, tz)
 
 

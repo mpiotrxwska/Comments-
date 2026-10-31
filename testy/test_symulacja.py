@@ -141,7 +141,7 @@ def test_calosc():
         glowny.FOLDER, glowny.USTAWIENIA = tmp, tmp / "ustawienia.json"
         glowny.DANE, glowny.KOMENTARZE = tmp / "dane", tmp / "dane" / "komentarze"
         glowny.PLIK_FILMOW, glowny.WYNIKI = tmp / "dane" / "filmy.json", tmp / "wyniki"
-        cfg = {"profil": "https://www.tiktok.com/@ja", "film_konkursowy": f"https://www.tiktok.com/@ja/video/{KONKURSOWY}",
+        cfg = {"profil": "www.tiktok.com/@ja", "film_konkursowy": "https://vm.tiktok.com/TEST123/",
                "start": "2026-10-01 18:00", "koniec": "2026-10-15 23:59", "strefa_czasowa": "Europe/Warsaw",
                "tryb_uczestnikow": "slowa_kluczowe", "slowa_kluczowe": glowny.DOMYSLNE_SLOWA,
                "licz_odpowiedzi": True, "liczba_zwyciezcow": 2, "max_minut_na_film": 3}
@@ -153,6 +153,9 @@ def test_calosc():
         def z_symulacja(folder):
             pw, ctx = oryg(folder)
             ctx.route("https://www.tiktok.com/**", obsluga)
+            ctx.route("https://vm.tiktok.com/**", lambda r: r.fulfill(
+                status=200, content_type="text/html",
+                body=f"<script>location.replace('https://www.tiktok.com/@ja/video/{KONKURSOWY}?_r=1')</script>"))
             return pw, ctx
 
         tiktok.uruchom_przegladarke = z_symulacja
@@ -166,6 +169,8 @@ def test_calosc():
             assert f["status"] == "KOMPLETNY", f
             assert f["pobrane"] == f["zgloszona_liczba"], f
         assert (glowny.WYNIKI / "wyniki_konkursu.xlsx").exists()
+        zapis = json.loads(glowny.USTAWIENIA.read_text(encoding="utf-8"))
+        assert zapis["film_konkursowy"] == f"https://www.tiktok.com/@ja/video/{KONKURSOWY}", zapis
         assert (glowny.WYNIKI / "csv" / "4_ranking.csv").exists()
         from openpyxl import load_workbook
         wb = load_workbook(glowny.WYNIKI / "wyniki_konkursu.xlsx")

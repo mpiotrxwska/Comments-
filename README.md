@@ -29,7 +29,7 @@ Zostaną dołączone do raportu.
 ### Krok 4. Uruchom analizę
 Kliknij dwukrotnie **`2_URUCHOM_ANALIZE.bat`**. Przy pierwszym uruchomieniu program zapyta o:
 1. link do Twojego profilu (np. `https://www.tiktok.com/@twojanazwa`),
-2. link do filmu konkursowego (pełny link z `/video/` – skopiuj go z przeglądarki na komputerze),
+2. link do filmu konkursowego – może być skrócony z przycisku *Udostępnij → Kopiuj link* (np. `https://vm.tiktok.com/...`); program sam go rozwinie,
 3. datę i godzinę rozpoczęcia konkursu (np. `2026-10-01 18:00`),
 4. datę i godzinę zakończenia (np. `2026-10-15 23:59`),
 5. sposób rozpoznawania uczestników,
