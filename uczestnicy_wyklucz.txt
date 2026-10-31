@@ -1,0 +1,1 @@
+# Wpisz tu @nazwy osób, które chcesz WYKLUCZYĆ z konkursu (jedna w linii).

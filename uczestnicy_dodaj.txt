@@ -1,0 +1,3 @@
+# Wpisz tu @nazwy osób, które po sprawdzeniu UZNAJESZ za uczestników (jedna w linii).
+# Przykład:
+# @anna_kowalska
