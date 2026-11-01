@@ -170,6 +170,9 @@ def _lista_filmow(page, profil_url, start, koniec, pytaj, log, elementy, odpowie
             for it in d.get("itemList") or []:
                 vid = str(it.get("id"))
                 autor = (it.get("author") or {}).get("uniqueId", "")
+                if not autor or autor.isdigit():  # TikTok czasem podaje numer zamiast @nazwy
+                    m = re.search(r"tiktok\.com/@([^/?#]+)", profil_url)
+                    autor = m.group(1) if m else autor
                 rodz = "photo" if it.get("imagePost") else "video"
                 elementy[vid] = {
                     "video_id": vid, "create_time": int(it.get("createTime") or data_z_id(vid)),
@@ -364,9 +367,13 @@ def pobierz_komentarze(page: Page, film: dict, pytaj: Callable[[str], str], log:
         except (KeyError, TypeError, ValueError):
             pass
 
+        log(f"   otwarto film (TikTok podaje komentarzy: "
+            f"{wynik['zgloszona_liczba'] if wynik['zgloszona_liczba'] is not None else '?'}) - przewijam komentarze...")
         t0 = time.time()
+        ostatni_log = t0
         bez_postepu = 0
         proby_otwarcia = 0
+        ostrzezono = False
         while True:
             rodzaj = czy_blokada(page)
             if rodzaj:
@@ -391,21 +398,26 @@ def pobierz_komentarze(page: Page, film: dict, pytaj: Callable[[str], str], log:
             pauza(1.2, 2.5)
             lista_koniec = z.lista_ma_wiecej is False or (wynik["zgloszona_liczba"] == 0)
             niedokonczone = z.watki_niedokonczone()
-            if lista_koniec and not niedokonczone and not klikniete and not odpowiedzi:
-                bez_postepu += 1
-                if bez_postepu >= 3:
-                    break
-            elif nowe == 0 and klikniete == 0:
-                bez_postepu += 1
-                if bez_postepu >= 10:
-                    break
-            else:
+            # Postęp = nowe komentarze. Samo klikanie bez nowych danych nie przedłuża pracy w nieskończoność.
+            if nowe or odpowiedzi:
                 bez_postepu = 0
+            else:
+                bez_postepu += 1
+            if lista_koniec and not niedokonczone and bez_postepu >= 3:
+                break
+            if bez_postepu >= 15:
+                break
             if time.time() - t0 > max_minut * 60:
                 wynik["blad"] = f"Przekroczono limit czasu ({max_minut} min) dla filmu."
                 break
-            if len(z.komentarze) and len(z.komentarze) % 50 == 0 and nowe:
-                log(f"   ... {len(z.komentarze)} komentarzy")
+            if time.time() - ostatni_log >= 10:
+                ostatni_log = time.time()
+                log(f"   ... pobrano {len(z.komentarze)} komentarzy, trwa przewijanie "
+                    f"({int(time.time() - t0)} s)")
+            if not z.komentarze and not ostrzezono and time.time() - t0 > 25:
+                ostrzezono = True
+                log("   ! Nie widzę jeszcze żadnych komentarzy. Sprawdź w oknie przeglądarki, czy otworzył się "
+                    "panel komentarzy i czy jesteś zalogowana. Nie klikaj nic - program spróbuje dalej.")
 
         # ostatnie zebranie odpowiedzi
         pauza(1, 2)
