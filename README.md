@@ -92,6 +92,22 @@ Na MacBooku nie zamykaj klapy w trakcie analizy.
 
 ---
 
+## Sposób B: ranking z plików CSV (bez automatycznego przewijania)
+
+Jeśli automatyczne pobieranie nie radzi sobie z TikTokiem, możesz wyeksportować komentarze
+rozszerzeniem przeglądarki (np. **TT Comment Exporter**) – jeden plik CSV na film – i policzyć ranking z plików:
+
+1. Wyeksportuj komentarze z **filmu konkursowego** i z **każdego** filmu z okresu konkursu.
+   Jeśli odpowiedzi w wątkach liczą się do konkursu, włącz w eksporterze pobieranie odpowiedzi.
+2. Nie zmieniaj nazw plików (muszą zawierać numer filmu) i wrzuć je wszystkie do folderu **`pliki_csv`**.
+3. Uruchom: Mac – w Terminalu `bash 6_RANKING_Z_PLIKOW_CSV.command`; Windows – `6_RANKING_Z_PLIKOW_CSV.bat`.
+
+Program sprawdza, czy w pliku są wszystkie odpowiedzi (porównuje z liczbą odpowiedzi podaną przez TikTok),
+a filmy z okresu konkursu, dla których nie ma pliku CSV (jeśli wcześniej działało wyszukiwanie filmów),
+oznacza jako nieprzeanalizowane. Filmy pobrane wcześniej w całości automatycznie są dołączane.
+
+---
+
 ## Gdy coś pójdzie nie tak
 
 | Sytuacja | Co zrobić |
@@ -165,6 +181,7 @@ python konkurs.py --ponow-rozbieznosci  # pobierz ponownie filmy ze statusem ROZ
 python konkurs.py --ponow-wszystkie     # pobierz od nowa wszystkie filmy
 python konkurs.py --nowa-konfiguracja   # podaj od nowa dane konkursu
 python testy/test_analiza.py            # testy logiki rankingu
+python testy/test_import_csv.py         # test wczytywania plików CSV
 python testy/test_symulacja.py          # test całego programu na symulowanym TikToku (offline)
 ```
 

@@ -1,0 +1,2 @@
+Wrzuć tutaj pliki CSV z komentarzami (po jednym na film) wyeksportowane z TikToka.
+Nazwa pliku musi zawierać numer filmu, np. TTCommentExporter-7697628228587982112-79-comments.csv

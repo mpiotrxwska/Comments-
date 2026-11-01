@@ -282,12 +282,71 @@ def pobieranie(cfg, start, koniec, tz, args) -> None:
             pass
 
 
-def generuj_raport(cfg, start, koniec, tz) -> None:
-    filmy = wczytaj_filmy()
-    if not filmy:
-        raise SystemExit("Brak danych - najpierw uruchom analizę (pobieranie komentarzy).")
-    ids = {str(f["video_id"]) for f in filmy}
-    kom = [c for c in wczytaj_komentarze() if str(c.get("video_id")) in ids]  # tylko filmy z aktualnej listy
+PLIKI_CSV = FOLDER / "pliki_csv"
+
+
+def dane_z_plikow_csv(cfg, start, koniec, tz) -> tuple[list[dict], list[dict]]:
+    """Filmy i komentarze z plików CSV (eksporter w przeglądarce). Filmy, których nie ma w CSV,
+    bierzemy z wcześniejszego automatycznego pobierania (jeśli było pobrane w całości)."""
+    from .import_csv import wczytaj_plik
+    from .tiktok import data_z_id
+    pliki = sorted(PLIKI_CSV.glob("*.csv")) if PLIKI_CSV.exists() else []
+    if not pliki:
+        raise SystemExit(f"Brak plików CSV w folderze {PLIKI_CSV}. Wrzuć tam pliki wyeksportowane z TikToka.")
+    kid = cfg["film_konkursowy_id"]
+    wl = cfg["wlasciciel_profilu"]
+    filmy: dict[str, dict] = {}
+    kom: list[dict] = []
+    for p in pliki:
+        try:
+            vid, k, info = wczytaj_plik(p, tz)
+        except ValueError as e:
+            log(f"! Pominięto plik {p.name}: {e}")
+            continue
+        if vid in filmy:  # kilka plików tego samego filmu - łączymy (duplikaty usuwa analiza)
+            f = filmy[vid]
+            f["pobrane"] += info["pobrane"]
+            f["blad"] += " | " + info["blad"]
+        else:
+            filmy[vid] = {"video_id": vid, "url": f"https://www.tiktok.com/@{wl}/video/{vid}",
+                          "create_time": data_z_id(vid), "opis": "", **info,
+                          "analizowano": "plik CSV"}
+        kom += k
+        log(f"Wczytano {p.name}: {info['pobrane']} komentarzy ({info['status']})")
+    # Filmy z okresu konkursu znane z automatycznego wyszukiwania, a bez pliku CSV
+    zapis = {f["video_id"]: f for f in wczytaj_filmy()}
+    poprzednie = {c["cid"]: c for c in wczytaj_komentarze()}
+    for vid, f in zapis.items():
+        w_oknie = start.timestamp() <= (f.get("create_time") or 0) <= koniec.timestamp()
+        if vid in filmy or not (w_oknie or vid == kid):
+            continue
+        if f.get("status") == KOMPLETNY:
+            filmy[vid] = dict(f, analizowano=f"{f.get('analizowano', '')} (przeglądarka)")
+            kom += [c for c in poprzednie.values() if str(c.get("video_id")) == vid]
+        else:
+            filmy[vid] = dict(f, status=NIEPRZEANALIZOWANY, pobrane=0,
+                              blad="Brak pliku CSV dla tego filmu - wyeksportuj jego komentarze")
+    if kid not in filmy:
+        log("! UWAGA: brak pliku CSV z filmu konkursowego - nie da się ustalić listy uczestników.")
+        filmy[kid] = {"video_id": kid, "url": cfg["film_konkursowy"], "create_time": data_z_id(kid),
+                      "status": NIEPRZEANALIZOWANY, "pobrane": 0, "blad": "Brak pliku CSV"}
+    poza = [f for f in filmy.values() if f["video_id"] != kid and
+            not start.timestamp() <= f["create_time"] <= koniec.timestamp()]
+    for f in poza:
+        log(f"! Plik z filmu {f['url']} - film opublikowany poza okresem konkursu "
+            f"({datetime.fromtimestamp(f['create_time'], tz):%Y-%m-%d %H:%M}); jego komentarze i tak są analizowane.")
+    return sorted(filmy.values(), key=lambda f: f["create_time"]), kom
+
+
+def generuj_raport(cfg, start, koniec, tz, z_plikow: bool = False) -> None:
+    if z_plikow:
+        filmy, kom = dane_z_plikow_csv(cfg, start, koniec, tz)
+    else:
+        filmy = wczytaj_filmy()
+        if not filmy:
+            raise SystemExit("Brak danych - najpierw uruchom analizę (pobieranie komentarzy).")
+        ids = {str(f["video_id"]) for f in filmy}
+        kom = [c for c in wczytaj_komentarze() if str(c.get("video_id")) in ids]  # tylko filmy z aktualnej listy
     w = analizuj(filmy, kom, cfg, start, koniec,
                  czytaj_liste(FOLDER / "uczestnicy_dodaj.txt"), czytaj_liste(FOLDER / "uczestnicy_wyklucz.txt"))
     WYNIKI.mkdir(exist_ok=True)
@@ -332,6 +391,8 @@ def main(argv=None) -> None:
     except Exception:
         pass
     ap = argparse.ArgumentParser(description="Analiza aktywności w konkursie TikTok")
+    ap.add_argument("--z-plikow", action="store_true",
+                    help="policz ranking z plików CSV w folderze pliki_csv (bez przeglądarki)")
     ap.add_argument("--tylko-raport", action="store_true", help="tylko przelicz ranking z zapisanych danych")
     ap.add_argument("--odswiez-liste", action="store_true", help="ponownie pobierz listę filmów z profilu")
     ap.add_argument("--ponow-rozbieznosci", action="store_true", help="ponów też filmy ze statusem ROZBIEZNOSC")
@@ -348,11 +409,12 @@ def main(argv=None) -> None:
     koniec = parsuj_date(cfg["koniec"], tz, True)
     log(f"Konkurs: {start:%Y-%m-%d %H:%M} - {koniec:%Y-%m-%d %H:%M} | profil @{cfg['wlasciciel_profilu']}")
 
-    if not args.tylko_raport:
+    if not args.tylko_raport and not args.z_plikow:
         pobieranie(cfg, start, koniec, tz, args)
     elif not cfg["film_konkursowy_id"]:
-        raise SystemExit("Najpierw uruchom analizę - skrócony link do filmu musi zostać rozwinięty.")
-    generuj_raport(cfg, start, koniec, tz)
+        raise SystemExit("W ustawieniach jest skrócony link do filmu konkursowego. Wpisz w ustawienia.json pełny "
+                         "link (z /video/ i numerem) albo uruchom raz 2_URUCHOM_ANALIZE.")
+    generuj_raport(cfg, start, koniec, tz, z_plikow=args.z_plikow)
 
 
 if __name__ == "__main__":
